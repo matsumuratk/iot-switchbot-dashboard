@@ -31,3 +31,17 @@ services:
       - ./docker/grafana/data:/var/lib/grafana
     depends_on:
       - influxdb
+
+  webserver:
+    build:
+      context: .
+      dockerfile: docker/webserver/Dockerfile
+    platform: linux/amd64
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./docker/webserver:/app
+    environment:
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+    depends_on:
+      - influxdb

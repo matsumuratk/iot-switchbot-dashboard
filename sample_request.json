@@ -1,0 +1,28 @@
+{
+  "devices": [
+    {
+      "deviceName": "11_thermohygrometer",
+      "temperature": 23.5,
+      "humidity": 55.0,
+      "battery": 100
+    },
+    {
+      "deviceName": "12_thermohygrometer",
+      "temperature": 24.2,
+      "humidity": 52.3,
+      "battery": 95
+    },
+    {
+      "deviceName": "13_thermophvgro",
+      "temperature": 22.8,
+      "humidity": 58.1,
+      "battery": 88
+    },
+    {
+      "deviceName": "14_thermoghygrometer",
+      "temperature": 25.1,
+      "humidity": 50.5,
+      "battery": 92
+    }
+  ]
+}

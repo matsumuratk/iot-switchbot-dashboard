@@ -1,0 +1,13 @@
+{
+  "devices": [
+    {
+      "deviceType": "WoIOSensor",
+      "deviceName": "12_thermohygrometer",
+      "deviceMacAddress": "d4:0e:84:86:51:16"
+    },
+    {
+      "deviceType": "WoIOSensor",
+      "deviceName": "14_thermohygrometer",
+      "deviceMacAddress": "dd:42:06:46:2f:81"
+    }
+}

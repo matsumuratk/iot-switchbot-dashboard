@@ -3,3 +3,6 @@
 LightsailDefaultKey-ap-northeast-1.pem
 .env
 .serena
+.secret.readme
+.vscode/
+.history

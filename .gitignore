@@ -6,3 +6,7 @@ LightsailDefaultKey-ap-northeast-1.pem
 .secret.readme
 .vscode/
 .history
+
+docker/grafana/data/
+docker/influxdb/config/*
+docker/influxdb/data/*

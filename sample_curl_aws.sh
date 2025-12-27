@@ -3,7 +3,7 @@
 # HTTPサーバーにセンサーデータを送信するサンプルスクリプト
 
 # サーバーURL（ローカル環境の場合）
-SERVER_URL="http://localhost:5000"
+SERVER_URL="http://35.79.71.96:5000"
 
 # ヘルスチェック
 echo "=== Health Check ==="

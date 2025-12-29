@@ -4,9 +4,9 @@ LightsailDefaultKey-ap-northeast-1.pem
 .env
 .serena
 .secret.readme
-.vscode/
+.vscode
 .history
 
-docker/grafana/data/
+docker/grafana/data/*
 docker/influxdb/config/*
 docker/influxdb/data/*

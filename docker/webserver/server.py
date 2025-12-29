@@ -24,74 +24,35 @@ bucket = "switchbot"
 client = InfluxDBClient(url="http://influxdb:8086", token=INFLUXDB_TOKEN, org="org")
 write_api = client.write_api(write_options=SYNCHRONOUS)
 
-# デバイス一覧をメモリにキャッシュ
-_device_cache = None
-
-
-def load_device_list():
-    """device_list.jsonを読み込んでキャッシュする"""
-    global _device_cache
-    if _device_cache is None:
-        try:
-            with open("device_list.json", "r", encoding="utf-8") as f:
-                devices = json.load(f)
-                # deviceNameをキーとした辞書に変換
-                _device_cache = {device["deviceName"]: device for device in devices}
-                logger.info(f"Loaded {len(_device_cache)} devices from device_list.json")
-        except Exception as e:
-            logger.error(f"Failed to load device list: {str(e)}")
-            _device_cache = {}
-    return _device_cache
-
-
-def get_device_info(device_name: str):
-    """デバイス名からデバイス情報を取得する"""
-    device_list = load_device_list()
-    return device_list.get(device_name)
-
 
 def save_device_data(device_data: dict):
     """HTTPリクエストから受け取ったデバイスデータをInfluxDBに保存する"""
 
     device_name = device_data.get("deviceName")
+    humidity = device_data.get("humidity")
+    temperature = device_data.get("temperature")
+    battery = device_data.get("battery")
 
     if not device_name:
         raise ValueError("deviceName is required")
 
-    # device_list.jsonからデバイス情報を取得
-    device_info = get_device_info(device_name)
-    if not device_info:
-        raise ValueError(f"Device not found in device_list.json: {device_name}")
+    if humidity is None or temperature is None:
+        raise ValueError("humidity and temperature are required")
 
-    device_type = device_info.get("deviceType")
-    device_id = device_info.get("deviceId")
+    # 全てのデータを温湿度センサーとして保存
+    p = (
+        Point("WoIOSensor")
+        .tag("device_name", device_name)
+        .field("humidity", float(humidity))
+        .field("temperature", float(temperature))
+    )
 
-    if device_type == "WoIOSensor":
-        # 温度・湿度センサーのデータ
-        humidity = device_data.get("humidity")
-        temperature = device_data.get("temperature")
-        battery = device_data.get("battery")
+    # バッテリー情報はオプション
+    if battery is not None:
+        p = p.field("battery", float(battery))
 
-        if humidity is None or temperature is None:
-            raise ValueError("humidity and temperature are required for WoIOSensor")
-
-        p = (
-            Point("WoIOSensor")
-            .tag("device_name", device_name)
-            .tag("device_id", device_id)
-            .field("humidity", float(humidity))
-            .field("temperature", float(temperature))
-        )
-
-        # バッテリー情報はオプション
-        if battery is not None:
-            p = p.field("battery", float(battery))
-
-        write_api.write(bucket=bucket, record=p)
-        logger.info(f"Saved WoIOSensor data: {device_name} (temp={temperature}, hum={humidity})")
-
-    else:
-        raise ValueError(f"Unsupported device type: {device_type}")
+    write_api.write(bucket=bucket, record=p)
+    logger.info(f"Saved sensor data: {device_name} (temp={temperature}, hum={humidity}, battery={battery})")
 
 
 @app.route("/health", methods=["GET"])
@@ -114,15 +75,12 @@ def get_devices():
             return jsonify({"error": "Device list file not found"}), 404
 
         with open(device_file_path, "r", encoding="utf-8") as f:
-            devices = json.load(f)
+            device_list = json.load(f)
 
-        logger.info(f"Returned {len(devices)} devices")
+        logger.info(f"Returned device list")
 
-        return jsonify({
-            "devices": devices,
-            "count": len(devices),
-            "timestamp": datetime.now().isoformat()
-        }), 200
+        # device_list.jsonをそのまま返す
+        return jsonify(device_list), 200
 
     except json.JSONDecodeError as e:
         logger.error(f"JSON decode error: {str(e)}")
@@ -153,8 +111,6 @@ def receive_sensor_data():
             }
         ]
     }
-
-    注: deviceIdとdeviceTypeはdevice_list.jsonから自動的に取得されます
     """
     try:
         data = request.get_json()

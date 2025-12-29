@@ -36,8 +36,6 @@ cd iot-switchbot-dashboard
 
 2. SwitchBot API認証情報を含む`.env`ファイルを作成:
 ```bash
-SWITCHBOT_ACCESS_TOKEN=your_access_token
-SWITCHBOT_SECRET=your_secret
 INFLUXDB_TOKEN=  # 手順3の後に入力
 ```
 

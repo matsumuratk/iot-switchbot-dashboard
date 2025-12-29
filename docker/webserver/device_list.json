@@ -1,19 +1,18 @@
-[
-  {
-    "deviceName": "11_thermohygrometer",
-    "BLEMAC": "ca:5f:46:46:3f:21"
-  },
-  {
-    "deviceName": "12_thermohygrometer",
-    "BLEMAC": "d4:0e:84:86:51:16"
-  },
-  {
-    "deviceName": "13_thermohygrometer",
-    "BLEMAC": "dd:42:04:06:64:6d"
-  },
-  {
-    "deviceName": "14_thermohygrometer",
-    "BLEMAC": "dd:42:06:46:2f:81"
-  },
-
+ [
+    {
+      "deviceName": "11_thermohygrometer",
+      "BLEMAC": "ca:5f:46:46:3f:21"
+    },
+    {
+      "deviceName": "12_thermohygrometer",
+      "BLEMAC": "d4:0e:84:86:51:16"
+    },
+    {
+      "deviceName": "13_thermohygrometer",
+      "BLEMAC": "dd:42:04:06:64:6d"
+    },
+    {
+      "deviceName": "14_thermohygrometer",
+      "BLEMAC": "dd:42:06:46:2f:81"
+    }
 ]

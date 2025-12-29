@@ -13,13 +13,13 @@
       "battery": 95
     },
     {
-      "deviceName": "13_thermophvgro",
+      "deviceName": "13_thermohygrometer",
       "temperature": 22.8,
       "humidity": 58.1,
       "battery": 88
     },
     {
-      "deviceName": "14_thermoghygrometer",
+      "deviceName": "14_thermohygrometer",
       "temperature": 25.1,
       "humidity": 50.5,
       "battery": 92

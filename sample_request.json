@@ -1,28 +1,15 @@
 {
+  "m5stick": {
+    "batteryVoltage": 3800,
+    "batteryLevel": 85,
+    "isCharging": false
+  },
   "devices": [
     {
-      "deviceName": "11_thermohygrometer",
+      "deviceName": "Device1",
       "temperature": 23.5,
-      "humidity": 55.0,
-      "battery": 100
-    },
-    {
-      "deviceName": "12_thermohygrometer",
-      "temperature": 24.2,
-      "humidity": 52.3,
+      "humidity": 60,
       "battery": 95
-    },
-    {
-      "deviceName": "13_thermohygrometer",
-      "temperature": 22.8,
-      "humidity": 58.1,
-      "battery": 88
-    },
-    {
-      "deviceName": "14_thermohygrometer",
-      "temperature": 25.1,
-      "humidity": 50.5,
-      "battery": 92
     }
   ]
 }

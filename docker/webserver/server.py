@@ -25,6 +25,29 @@ client = InfluxDBClient(url="http://influxdb:8086", token=INFLUXDB_TOKEN, org="o
 write_api = client.write_api(write_options=SYNCHRONOUS)
 
 
+def save_m5stick_data(m5stick_data: dict):
+    """M5StickのデータをInfluxDBに保存する"""
+    
+    battery_voltage = m5stick_data.get("batteryVoltage")
+    battery_level = m5stick_data.get("batteryLevel")
+    is_charging = m5stick_data.get("isCharging")
+
+    if battery_voltage is None:
+        raise ValueError("batteryVoltage is required")
+    
+    # M5Stickのデータを保存
+    p = Point("M5Stick").field("batteryVoltage", float(battery_voltage))
+    
+    if battery_level is not None:
+        p = p.field("batteryLevel", float(battery_level))
+    
+    if is_charging is not None:
+        p = p.field("isCharging", bool(is_charging))
+    
+    write_api.write(bucket=bucket, record=p)
+    logger.info(f"Saved M5Stick data: voltage={battery_voltage}, level={battery_level}, charging={is_charging}")
+
+
 def save_device_data(device_data: dict):
     """HTTPリクエストから受け取ったデバイスデータをInfluxDBに保存する"""
 
@@ -96,17 +119,16 @@ def receive_sensor_data():
 
     リクエストボディの形式:
     {
+        "m5stick": {
+            "batteryVoltage": 3800,
+            "batteryLevel": 85,
+            "isCharging": false
+        },
         "devices": [
             {
-                "deviceName": "11_thermohygrometer",
+                "deviceName": "Device1",
                 "temperature": 23.5,
-                "humidity": 55.0,
-                "battery": 100
-            },
-            {
-                "deviceName": "12_thermohygrometer",
-                "temperature": 24.2,
-                "humidity": 52.3,
+                "humidity": 60,
                 "battery": 95
             }
         ]
@@ -117,6 +139,21 @@ def receive_sensor_data():
 
         if not data:
             return jsonify({"error": "No JSON data provided"}), 400
+
+        # M5Stickのデータを保存
+        m5stick_saved = False
+        m5stick_error = None
+        m5stick_data = data.get("m5stick")
+        if m5stick_data:
+            try:
+                save_m5stick_data(m5stick_data)
+                m5stick_saved = True
+            except ValueError as e:
+                m5stick_error = f"M5Stick: {str(e)}"
+                logger.error(m5stick_error)
+            except Exception as e:
+                m5stick_error = f"M5Stick: Unexpected error - {str(e)}"
+                logger.error(m5stick_error)
 
         devices = data.get("devices")
         if not devices:
@@ -146,11 +183,20 @@ def receive_sensor_data():
             "success": True,
             "saved": saved_count,
             "total": len(devices),
+            "m5stick_saved": m5stick_saved,
+            "m5stick_saved": m5stick_saved,
             "timestamp": datetime.now().isoformat()
         }
 
+        if m5stick_error:
+            if "errors" not in response:
+                response["errors"] = []
+            response["errors"].append(m5stick_error)
+        
         if errors:
-            response["errors"] = errors
+            if "errors" not in response:
+                response["errors"] = []
+            response["errors"].extend(errors)
 
         logger.info(f"Processed {saved_count}/{len(devices)} devices")
 

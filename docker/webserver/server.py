@@ -48,6 +48,24 @@ def save_m5stick_data(m5stick_data: dict):
     logger.info(f"Saved M5Stick data: voltage={battery_voltage}, level={battery_level}, charging={is_charging}")
 
 
+def save_m5stick_extra_sensors(weight, ds18b20_temperature):
+    """M5Stick本体に追加されたセンサー（HX711重量センサー、DS18B20温度センサー）のデータをInfluxDBに保存する
+
+    どちらもオプション。呼び出し側は少なくとも一方がNoneでないときのみ呼び出すこと。
+    """
+
+    p = Point("M5Stick")
+
+    if weight is not None:
+        p = p.field("weight", float(weight))
+
+    if ds18b20_temperature is not None:
+        p = p.field("ds18b20Temperature", float(ds18b20_temperature))
+
+    write_api.write(bucket=bucket, record=p)
+    logger.info(f"Saved M5Stick extra sensor data: weight={weight}, ds18b20Temperature={ds18b20_temperature}")
+
+
 def save_device_data(device_data: dict):
     """HTTPリクエストから受け取ったデバイスデータをInfluxDBに保存する"""
 
@@ -131,7 +149,9 @@ def receive_sensor_data():
                 "humidity": 60,
                 "battery": 95
             }
-        ]
+        ],
+        "weight": 123.4,             // HX711重量センサー(g)。任意
+        "ds18b20Temperature": 25.3   // DS18B20温度センサー(℃)。任意
     }
     """
     try:
@@ -154,6 +174,20 @@ def receive_sensor_data():
             except Exception as e:
                 m5stick_error = f"M5Stick: Unexpected error - {str(e)}"
                 logger.error(m5stick_error)
+
+        # M5Stick本体の追加センサー（重量・DS18B20温度）を保存
+        # どちらも任意項目。存在しない場合は何もしない（エラーにしない）
+        extra_sensors_saved = False
+        extra_sensors_error = None
+        weight = data.get("weight")
+        ds18b20_temperature = data.get("ds18b20Temperature")
+        if weight is not None or ds18b20_temperature is not None:
+            try:
+                save_m5stick_extra_sensors(weight, ds18b20_temperature)
+                extra_sensors_saved = True
+            except Exception as e:
+                extra_sensors_error = f"M5Stick extra sensors: Unexpected error - {str(e)}"
+                logger.error(extra_sensors_error)
 
         devices = data.get("devices")
         if not devices:
@@ -184,7 +218,7 @@ def receive_sensor_data():
             "saved": saved_count,
             "total": len(devices),
             "m5stick_saved": m5stick_saved,
-            "m5stick_saved": m5stick_saved,
+            "extra_sensors_saved": extra_sensors_saved,
             "timestamp": datetime.now().isoformat()
         }
 
@@ -192,7 +226,12 @@ def receive_sensor_data():
             if "errors" not in response:
                 response["errors"] = []
             response["errors"].append(m5stick_error)
-        
+
+        if extra_sensors_error:
+            if "errors" not in response:
+                response["errors"] = []
+            response["errors"].append(extra_sensors_error)
+
         if errors:
             if "errors" not in response:
                 response["errors"] = []

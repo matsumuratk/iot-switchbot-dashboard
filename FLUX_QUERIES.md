@@ -786,6 +786,59 @@ from(bucket: "switchbot")
 
 ---
 
+## 16. M5Stick本体センサー（重量・DS18B20温度）
+
+M5StickC Plus2本体に取り付けられたHX711重量センサー、DS18B20温度センサーの値です。`WoIOSensor`とは別measurement（`M5Stick`）に、デバイス全体で1レコードとして保存されます（`device_name`タグは付与されません）。
+
+- **Measurement**: `M5Stick`
+- **Fields**: `weight` (重量, g), `ds18b20Temperature` (温度, ℃)（いずれもHX711/DS18B20が取得失敗した場合は記録されません）
+
+### 16-1. 現在の重量（最新値）
+
+```flux
+from(bucket: "switchbot")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r["_measurement"] == "M5Stick")
+  |> filter(fn: (r) => r["_field"] == "weight")
+  |> last()
+```
+
+### 16-2. 現在のDS18B20温度（最新値）
+
+```flux
+from(bucket: "switchbot")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r["_measurement"] == "M5Stick")
+  |> filter(fn: (r) => r["_field"] == "ds18b20Temperature")
+  |> last()
+```
+
+### 16-3. 重量の時系列グラフ
+
+```flux
+from(bucket: "switchbot")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r["_measurement"] == "M5Stick")
+  |> filter(fn: (r) => r["_field"] == "weight")
+  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)
+  |> yield(name: "weight")
+```
+
+### 16-4. DS18B20温度の時系列グラフ
+
+```flux
+from(bucket: "switchbot")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r["_measurement"] == "M5Stick")
+  |> filter(fn: (r) => r["_field"] == "ds18b20Temperature")
+  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)
+  |> yield(name: "ds18b20Temperature")
+```
+
+**説明**: 重量・DS18B20温度はいずれもオプション項目のため、機体側で取得できなかった期間はデータが欠落します（`createEmpty: false`のため空欄はスキップされます）。
+
+---
+
 ## 使い方
 
 ### Grafana変数の設定

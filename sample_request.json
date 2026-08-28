@@ -11,5 +11,7 @@
       "humidity": 60,
       "battery": 95
     }
-  ]
+  ],
+  "weight": 123.4,
+  "ds18b20Temperature": 25.3
 }

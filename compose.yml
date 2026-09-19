@@ -23,6 +23,7 @@ services:
       - "3000:3000"
     volumes:
       - ./docker/grafana/data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning
     depends_on:
       - influxdb
 

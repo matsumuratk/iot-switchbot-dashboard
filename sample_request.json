@@ -13,5 +13,17 @@
     }
   ],
   "weight": 123.4,
-  "ds18b20Temperature": 25.3
+  "ds18b20Temperature": 25.3,
+  "diagnostics": {
+    "firmwareVersion": "2.0.0",
+    "resetReason": "poweron",
+    "freeHeap": 158984,
+    "signalQuality": 15,
+    "operatorName": "SoftBank",
+    "bleFound": 1,
+    "bleTotal": 4,
+    "hx711Ok": true,
+    "otaChecked": true,
+    "otaAvailable": false
+  }
 }

@@ -10,3 +10,4 @@ LightsailDefaultKey-ap-northeast-1.pem
 docker/grafana/data/*
 docker/influxdb/config/*
 docker/influxdb/data/*
+docker/webserver/firmware/*.bin

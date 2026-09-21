@@ -792,6 +792,7 @@ M5StickC Plus2本体に取り付けられたHX711重量センサー、DS18B20温
 
 - **Measurement**: `M5Stick`
 - **Fields**: `weight` (重量, g), `ds18b20Temperature` (温度, ℃)（いずれもHX711/DS18B20が取得失敗した場合は記録されません）
+- **注意**: `ds18b20Temperature`はSIM7080G(LTE)版ファームウェア（DS18B20非搭載構成）からは送信されません。元々オプション項目として設計されているため、この場合もエラーにはならず単にフィールドが記録されないだけです。
 
 ### 16-1. 現在の重量（最新値）
 
@@ -836,6 +837,48 @@ from(bucket: "switchbot")
 ```
 
 **説明**: 重量・DS18B20温度はいずれもオプション項目のため、機体側で取得できなかった期間はデータが欠落します（`createEmpty: false`のため空欄はスキップされます）。
+
+---
+
+## 17. M5Stick診断情報
+
+USBを繋がずにシリアルモニタ相当の状態（電波状況・BLE検出数・OTA確認結果等）を確認するための情報です。`/api/sensor-data`の`diagnostics`フィールドから保存されます（`device_name`タグは付与されません）。
+
+- **Measurement**: `M5StickDiagnostics`
+- **Tags**: `firmwareVersion`, `resetReason`, `operatorName`
+- **Fields**: `freeHeap`, `signalQuality`, `bleFound`, `bleTotal`（整数）、`hx711Ok`, `otaChecked`, `otaAvailable`（真偽値）、`otaError`（文字列、問題があった場合のみ記録）
+
+### 17-1. 直近の診断情報（最新値）
+
+```flux
+from(bucket: "switchbot")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r["_measurement"] == "M5StickDiagnostics")
+  |> last()
+```
+
+### 17-2. 電波品質(RSSI相当)の時系列グラフ
+
+```flux
+from(bucket: "switchbot")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r["_measurement"] == "M5StickDiagnostics")
+  |> filter(fn: (r) => r["_field"] == "signalQuality")
+  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)
+  |> yield(name: "signalQuality")
+```
+
+### 17-3. OTAエラーの発生履歴
+
+```flux
+from(bucket: "switchbot")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r["_measurement"] == "M5StickDiagnostics")
+  |> filter(fn: (r) => r["_field"] == "otaError")
+  |> yield(name: "otaError")
+```
+
+**説明**: `otaError`は問題があった場合のみ記録されるフィールドのため、このクエリの結果が空であれば直近の期間でOTA関連のエラーは発生していないことを意味します。
 
 ---
 

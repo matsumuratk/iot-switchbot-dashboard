@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 
@@ -23,6 +23,10 @@ INFLUXDB_TOKEN = os.environ["INFLUXDB_TOKEN"]
 bucket = "switchbot"
 client = InfluxDBClient(url="http://influxdb:8086", token=INFLUXDB_TOKEN, org="org")
 write_api = client.write_api(write_options=SYNCHRONOUS)
+
+# OTAファームウェア配信用ディレクトリ（manifest.jsonと.binファイルを手動配置する運用）
+FIRMWARE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "firmware")
+FIRMWARE_MANIFEST_PATH = os.path.join(FIRMWARE_DIR, "manifest.json")
 
 
 def save_m5stick_data(m5stick_data: dict):
@@ -64,6 +68,39 @@ def save_m5stick_extra_sensors(weight, ds18b20_temperature):
 
     write_api.write(bucket=bucket, record=p)
     logger.info(f"Saved M5Stick extra sensor data: weight={weight}, ds18b20Temperature={ds18b20_temperature}")
+
+
+def save_diagnostics(diagnostics: dict):
+    """M5Stickの診断情報（電波状況・BLE検出数・OTA確認結果等）をInfluxDBに保存する
+
+    USBを繋がずにシリアルモニタ相当の状態を後から確認できるようにするための情報。
+    """
+
+    p = Point("M5StickDiagnostics")
+
+    # 低カーディナリティな文字列項目はtagとして保存（Grafanaでのフィルタ・グルーピング用）
+    for tag_key in ("firmwareVersion", "resetReason", "operatorName"):
+        tag_value = diagnostics.get(tag_key)
+        if tag_value is not None:
+            p = p.tag(tag_key, str(tag_value))
+
+    for field_key in ("freeHeap", "signalQuality", "bleFound", "bleTotal"):
+        field_value = diagnostics.get(field_key)
+        if field_value is not None:
+            p = p.field(field_key, int(field_value))
+
+    for field_key in ("hx711Ok", "otaChecked", "otaAvailable"):
+        field_value = diagnostics.get(field_key)
+        if field_value is not None:
+            p = p.field(field_key, bool(field_value))
+
+    # otaErrorは問題があった場合のみ含まれる（正常時はキー自体が省略される）
+    ota_error = diagnostics.get("otaError")
+    if ota_error is not None:
+        p = p.field("otaError", str(ota_error))
+
+    write_api.write(bucket=bucket, record=p)
+    logger.info(f"Saved M5Stick diagnostics: {diagnostics}")
 
 
 def save_device_data(device_data: dict):
@@ -151,7 +188,20 @@ def receive_sensor_data():
             }
         ],
         "weight": 123.4,             // HX711重量センサー(g)。任意
-        "ds18b20Temperature": 25.3   // DS18B20温度センサー(℃)。任意
+        "ds18b20Temperature": 25.3,  // DS18B20温度センサー(℃)。任意
+        "diagnostics": {              // 診断情報。任意
+            "firmwareVersion": "2.0.0",
+            "resetReason": "poweron",
+            "freeHeap": 158984,
+            "signalQuality": 15,
+            "operatorName": "SoftBank",
+            "bleFound": 1,
+            "bleTotal": 4,
+            "hx711Ok": true,
+            "otaChecked": true,
+            "otaAvailable": false,
+            "otaError": "download HTTP 404"  // 問題があった場合のみ
+        }
     }
     """
     try:
@@ -189,8 +239,21 @@ def receive_sensor_data():
                 extra_sensors_error = f"M5Stick extra sensors: Unexpected error - {str(e)}"
                 logger.error(extra_sensors_error)
 
+        # 診断情報（電波状況・BLE検出数・OTA確認結果等）を保存
+        # 任意項目。存在しない場合は何もしない（エラーにしない）
+        diagnostics_saved = False
+        diagnostics_error = None
+        diagnostics = data.get("diagnostics")
+        if diagnostics:
+            try:
+                save_diagnostics(diagnostics)
+                diagnostics_saved = True
+            except Exception as e:
+                diagnostics_error = f"Diagnostics: Unexpected error - {str(e)}"
+                logger.error(diagnostics_error)
+
         devices = data.get("devices")
-        if not devices:
+        if devices is None:
             return jsonify({"error": "devices field is required"}), 400
 
         if not isinstance(devices, list):
@@ -219,6 +282,7 @@ def receive_sensor_data():
             "total": len(devices),
             "m5stick_saved": m5stick_saved,
             "extra_sensors_saved": extra_sensors_saved,
+            "diagnostics_saved": diagnostics_saved,
             "timestamp": datetime.now().isoformat()
         }
 
@@ -232,6 +296,11 @@ def receive_sensor_data():
                 response["errors"] = []
             response["errors"].append(extra_sensors_error)
 
+        if diagnostics_error:
+            if "errors" not in response:
+                response["errors"] = []
+            response["errors"].append(diagnostics_error)
+
         if errors:
             if "errors" not in response:
                 response["errors"] = []
@@ -244,6 +313,61 @@ def receive_sensor_data():
     except Exception as e:
         logger.error(f"Request processing error: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/firmware/latest", methods=["GET"])
+def get_latest_firmware():
+    """OTAファームウェア更新エンドポイント
+
+    M5Stickが起動時にGETし、レスポンスのversionが自機のFIRMWARE_VERSIONと異なれば
+    urlからダウンロード・書き込みを行う。firmware/manifest.jsonを手動で配置して運用する。
+
+    レスポンス形式:
+    {
+        "version": "2.0.1",
+        "url": "/firmware/2.0.1.bin",
+        "md5": "d41d8cd98f00b204e9800998ecf8427e"  // 任意
+    }
+    """
+    try:
+        if not os.path.exists(FIRMWARE_MANIFEST_PATH):
+            logger.info("No firmware manifest found; skipping OTA")
+            return jsonify({"error": "No firmware manifest found"}), 404
+
+        with open(FIRMWARE_MANIFEST_PATH, "r", encoding="utf-8") as f:
+            manifest = json.load(f)
+
+        version = manifest.get("version")
+        filename = manifest.get("file")
+
+        if not version or not filename:
+            logger.error("Firmware manifest is missing 'version' or 'file'")
+            return jsonify({"error": "Invalid firmware manifest"}), 500
+
+        bin_path = os.path.join(FIRMWARE_DIR, filename)
+        if not os.path.exists(bin_path):
+            logger.error(f"Firmware binary not found: {bin_path}")
+            return jsonify({"error": "Firmware binary not found"}), 404
+
+        response = {"version": version, "url": f"/firmware/{filename}"}
+        if manifest.get("md5"):
+            response["md5"] = manifest["md5"]
+
+        logger.info(f"Returned firmware manifest: version={version}")
+        return jsonify(response), 200
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Firmware manifest JSON decode error: {str(e)}")
+        return jsonify({"error": "Invalid JSON in firmware manifest"}), 500
+    except Exception as e:
+        logger.error(f"Error reading firmware manifest: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/firmware/<path:filename>", methods=["GET"])
+def get_firmware_file(filename):
+    """ファームウェア.binファイルを配信するエンドポイント"""
+    return send_from_directory(FIRMWARE_DIR, filename, as_attachment=False)
 
 
 if __name__ == "__main__":

@@ -150,6 +150,7 @@ Content-Type: application/json
 **注意**: 
 - `deviceId`と`deviceType`は`deviceName`に基づいて`device_list.json`から自動的に取得されます
 - `device_list.json`をお使いのデバイス情報で更新する必要があります
+- `weight`（HX711重量センサー）、`ds18b20Temperature`（DS18B20温度センサー）、`diagnostics`（診断情報）はいずれも任意項目です
 
 **レスポンス:**
 ```json
@@ -157,9 +158,57 @@ Content-Type: application/json
   "success": true,
   "saved": 2,
   "total": 2,
+  "m5stick_saved": true,
+  "extra_sensors_saved": true,
+  "diagnostics_saved": true,
   "timestamp": "2025-12-27T15:52:16.530052"
 }
 ```
+
+#### 診断情報（diagnostics）
+
+M5Stickの電波状況・BLE検出数・OTA確認結果などを、USBを繋がなくても後から確認できるようにするための情報です。
+`/api/sensor-data`のリクエストボディにトップレベル項目として含めると、InfluxDBの`M5StickDiagnostics`measurementに保存されます。
+
+```json
+"diagnostics": {
+  "firmwareVersion": "2.0.0",
+  "resetReason": "poweron",
+  "freeHeap": 158984,
+  "signalQuality": 15,
+  "operatorName": "SoftBank",
+  "bleFound": 1,
+  "bleTotal": 4,
+  "hx711Ok": true,
+  "otaChecked": true,
+  "otaAvailable": false,
+  "otaError": "download HTTP 404"
+}
+```
+
+`otaError`は問題があった場合のみ含めてください（正常時はキー自体を省略）。全項目が任意です。
+
+#### OTAファームウェア更新
+M5Stickが起動時にポーリングし、新しいファームウェアがあれば自動でダウンロード・書き込み・再起動します。
+
+```bash
+GET http://localhost:5000/api/firmware/latest
+```
+
+**レスポンス:**
+```json
+{
+  "version": "2.0.1",
+  "url": "/firmware/2.0.1.bin",
+  "md5": "d41d8cd98f00b204e9800998ecf8427e"
+}
+```
+
+- `version`はM5Stick側の`FIRMWARE_VERSION`と単純な文字列比較されます
+- `url`は同じホスト上のパス（`GET /firmware/<file>`で配信）
+- `md5`は任意
+- 配信するファームウェアがない場合は404を返し、M5Stick側は更新チェックをスキップします
+- 新しいファームウェアを配信する手順は[docker/webserver/firmware/README.md](docker/webserver/firmware/README.md)を参照
 
 ### APIのテスト
 
@@ -229,6 +278,7 @@ const int NUM_DEVICES = 2;
 │   └── webserver/         # HTTP REST APIサーバー
 │       ├── server.py      # Flaskサーバー実装
 │       ├── device_list.json # デバイス設定
+│       ├── firmware/      # OTA配信用ファームウェア（manifest.json, *.bin）
 │       └── requirements.txt
 ├── M5StickCPlus2/         # M5StickC Plus2 Arduinoコード
 │   └── switchbot_reader.ino
